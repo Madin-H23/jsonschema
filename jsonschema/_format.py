@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from contextlib import suppress
+import functools
 from datetime import date, datetime
 from uuid import UUID
 import ipaddress
@@ -16,6 +17,26 @@ _FormatCheckCallable = Callable[[object], bool]
 _RaisesType = type[Exception] | tuple[type[Exception], ...]
 
 _RE_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
+
+
+def _rejects_trailing_newline(
+    func: Callable[[object], bool],
+) -> Callable[[object], bool]:
+    """
+    Reject a single trailing newline before delegating to the validator.
+
+    Some of the underlying validators (rfc3339-validator, rfc3987, fqdn)
+    accept exactly one trailing newline, but the format grammars do not
+    allow one, so it is rejected here instead.
+    """
+
+    @functools.wraps(func)
+    def _check(instance: object) -> bool:
+        if isinstance(instance, str) and instance.endswith("\n"):
+            return False
+        return func(instance)
+
+    return _check
 
 
 class FormatChecker:
@@ -283,6 +304,7 @@ with suppress(ImportError):
         # here for now
         raises=ValueError,
     )
+    @_rejects_trailing_newline
     def is_host_name(instance: object) -> bool:
         if not isinstance(instance, str):
             return True
@@ -313,6 +335,7 @@ except ImportError:
         from rfc3986_validator import validate_rfc3986
 
         @_checks_drafts(name="uri")
+        @_rejects_trailing_newline
         def is_uri(instance: object) -> bool:
             if not isinstance(instance, str):
                 return True
@@ -325,6 +348,7 @@ except ImportError:
             draft202012="uri-reference",
             raises=ValueError,
         )
+        @_rejects_trailing_newline
         def is_uri_reference(instance: object) -> bool:
             if not isinstance(instance, str):
                 return True
@@ -339,6 +363,7 @@ except ImportError:
             draft202012="iri",
             raises=ValueError,
         )
+        @_rejects_trailing_newline
         def is_iri(instance: object) -> bool:
             if not isinstance(instance, str):
                 return True
@@ -350,6 +375,7 @@ except ImportError:
             draft202012="iri-reference",
             raises=ValueError,
         )
+        @_rejects_trailing_newline
         def is_iri_reference(instance: object) -> bool:
             if not isinstance(instance, str):
                 return True
@@ -363,6 +389,7 @@ else:
         draft202012="iri",
         raises=ValueError,
     )
+    @_rejects_trailing_newline
     def is_iri(instance: object) -> bool:
         if not isinstance(instance, str):
             return True
@@ -374,12 +401,14 @@ else:
         draft202012="iri-reference",
         raises=ValueError,
     )
+    @_rejects_trailing_newline
     def is_iri_reference(instance: object) -> bool:
         if not isinstance(instance, str):
             return True
         return rfc3987.parse(instance, rule="IRI_reference")
 
     @_checks_drafts(name="uri", raises=ValueError)
+    @_rejects_trailing_newline
     def is_uri(instance: object) -> bool:
         if not isinstance(instance, str):
             return True
@@ -392,6 +421,7 @@ else:
         draft202012="uri-reference",
         raises=ValueError,
     )
+    @_rejects_trailing_newline
     def is_uri_reference(instance: object) -> bool:
         if not isinstance(instance, str):
             return True
@@ -402,6 +432,7 @@ with suppress(ImportError):
     from rfc3339_validator import validate_rfc3339
 
     @_checks_drafts(name="date-time")
+    @_rejects_trailing_newline
     def is_datetime(instance: object) -> bool:
         if not isinstance(instance, str):
             return True

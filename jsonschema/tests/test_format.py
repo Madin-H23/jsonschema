@@ -80,6 +80,38 @@ class TestFormatChecker(TestCase):
         with self.assertRaises(FormatError):
             checker.check(instance="not-an-ipv4", format="ipv4")
 
+
+    def test_it_rejects_a_single_trailing_newline(self):
+        # The validators backing these formats accept exactly one trailing
+        # newline, but the format grammars do not allow one (GH#1588)
+        checker = FormatChecker()
+        trailing_newline = [
+            ("date-time", "1985-04-12T23:20:50Z\n"),
+            ("uri", "http://foo.bar/\n"),
+            ("uri-reference", "http://foo.bar/\n"),
+            ("iri", "http://foo.bar/\n"),
+            ("iri-reference", "http://foo.bar/\n"),
+            ("hostname", "example.com\n"),
+        ]
+        for format, instance in trailing_newline:
+            if format not in checker.checkers:
+                continue  # optional format dependency not installed
+            with self.subTest(format=format):
+                self.assertFalse(checker.conforms(instance, format))
+
+        # the values without the trailing newline stay valid
+        valid = [
+            ("date-time", "1985-04-12T23:20:50Z"),
+            ("uri", "http://foo.bar/"),
+            ("iri", "http://foo.bar/"),
+            ("hostname", "example.com"),
+        ]
+        for format, instance in valid:
+            if format not in checker.checkers:
+                continue  # optional format dependency not installed
+            with self.subTest(format=format):
+                self.assertTrue(checker.conforms(instance, format))
+
     def test_repr(self):
         checker = FormatChecker(formats=())
         checker.checks("foo")(lambda thing: True)  # pragma: no cover
